@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DADASH Watson — Recrutement Chatters</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #0F172A; color: #F8FAFC; }
+    .watson-card { background: #1E293B; border: 1px solid #334155; }
+    .watson-primary { background: #6366F1; }
+    .watson-primary:hover { background: #818CF8; }
+    .watson-success { color: #22C55E; }
+    .watson-error { color: #EF4444; }
+    .watson-warning { color: #F59E0B; }
+    .watson-input {
+      background: #0F172A;
+      border: 1px solid #334155;
+      color: #F8FAFC;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.375rem;
+    }
+    .watson-input:focus {
+      outline: none;
+      border-color: #6366F1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    .watson-input::placeholder { color: #94A3B8; }
+    .timer-danger { color: #EF4444; font-weight: 600; }
+    .msg-sent { background: #6366F1; border-radius: 1rem 1rem 0 1rem; }
+    .msg-received { background: #334155; border-radius: 1rem 1rem 1rem 0; }
+    .smooth-fade { transition: opacity 0.3s ease; }
+  </style>
+</head>
+<body class="bg-slate-900">
+
+<div id="app"></div>
+
+<script type="text/babel">
+// ============================================================================
+// MODULE-LEVEL STATE (persists across re-renders, not localStorage)
+// ============================================================================
+let currentCandidateId = null;
+let currentCandidateToken = null;
+let currentAdminUserId = null;
+let currentAdminRole = null;
+
+// Test state (module-level to persist across page reloads)
+let currentTestState = null;
+
+// Supabase client
+const supabaseUrl = "https://lkrzjwfwhiimpnsyeuxi.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrcnpqd2Z3aGlpbXBuc3lldXhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4MTM1MTUsImV4cCI6MjA1MzM4OTUxNX0.yEThLc0bM1FQxfBMkhFHZy08F5s6MQfq1VtLOx8Nk_A";
+const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+// Toast state
+let toastMessage = "";
+let toastType = "info";
+let toastVisible = false;
+
+// ============================================================================
+// DATA: QUESTIONS
+// ============================================================================
+const QI_QUESTIONS = [
+  {"id":1,"question":"Si tous les Bloops sont des Razzies et que tous les Razzies sont des Lazzies, alors tous les Bloops sont certainement des Lazzies.","options":["Vrai","Faux","On ne peut pas savoir","Ça dépend du contexte"],"correct":"Vrai"},
+  {"id":2,"question":"Quelle est la suite logique : 2, 6, 18, 54, ... ?","options":["108","162","72","216"],"correct":"162"},
+  {"id":3,"question":"Un train part de Zurich à 8h et roule à 120 km/h. Un autre part de Berne (à 120 km) à 8h30 et roule à 160 km/h. À quelle heure se croisent-ils ?","options":["8h51","9h06","8h45","9h12"],"correct":"8h51"},
+  {"id":4,"question":"Marie a 2 fois l'âge de Pierre. Dans 10 ans, elle aura 1,5 fois son âge. Quel âge a Pierre ?","options":["10 ans","15 ans","20 ans","25 ans"],"correct":"20 ans"},
+  {"id":5,"question":"Quel mot n'appartient PAS au groupe : chat, chien, hamster, baleine ?","options":["Baleine","Hamster","Chat","Chien"],"correct":"Baleine"},
+  {"id":6,"question":"Si ABCD = 1234, alors DCBA = ?","options":["4321","1234","3412","2143"],"correct":"4321"},
+  {"id":7,"question":"Un commerçant achète un article 80 CHF et le revend 100 CHF. Quel est son pourcentage de profit ?","options":["20%","25%","15%","30%"],"correct":"25%"},
+  {"id":8,"question":"Complétez : Lundi est à Mardi ce que Jeudi est à ... ?","options":["Vendredi","Mercredi","Samedi","Dimanche"],"correct":"Vendredi"},
+  {"id":9,"question":"Si 5 machines fabriquent 5 pièces en 5 minutes, combien de temps faudra-t-il à 100 machines pour fabriquer 100 pièces ?","options":["5 minutes","100 minutes","20 minutes","1 minute"],"correct":"5 minutes"},
+  {"id":10,"question":"Quelle figure complète la séquence : ○ □ △ ○ □ △ ○ □ ... ?","options":["△","○","□","◇"],"correct":"△"},
+  {"id":11,"question":"Pierre est plus grand que Marie. Marie est plus grande que Jean. Qui est le plus petit ?","options":["Jean","Marie","Pierre","On ne peut pas savoir"],"correct":"Jean"},
+  {"id":12,"question":"Un père et son fils ont ensemble 36 ans. Le père a 30 ans de plus que le fils. Quel âge a le fils ?","options":["3 ans","6 ans","4 ans","5 ans"],"correct":"3 ans"},
+  {"id":13,"question":"Quelle est la suite : 1, 1, 2, 3, 5, 8, ... ?","options":["13","11","10","12"],"correct":"13"},
+  {"id":14,"question":"Si je retourne un sablier de 7 min et un de 11 min en même temps, après combien de temps puis-je mesurer exactement 15 minutes ?","options":["15 min (retourner le 11 à 7 min)","15 min (retourner le 7 à 7 min)","Impossible","14 min"],"correct":"15 min (retourner le 11 à 7 min)"},
+  {"id":15,"question":"Quel nombre est à 9 ce que 25 est à 5 ?","options":["81","45","3","18"],"correct":"81"},
+  {"id":16,"question":"Dans un groupe de 30 personnes, 18 parlent français, 15 parlent anglais, et 5 ne parlent aucune des deux langues. Combien parlent les deux ?","options":["8","10","5","3"],"correct":"8"},
+  {"id":17,"question":"Si on coupe un gâteau en 8 parts avec seulement 3 coups de couteau, c'est :","options":["Possible","Impossible","Possible seulement si le gâteau est rond","Possible seulement avec un couteau très long"],"correct":"Possible"},
+  {"id":18,"question":"Un escargot est au fond d'un puits de 10m. Chaque jour il monte 3m et glisse de 2m la nuit. En combien de jours sort-il ?","options":["8 jours","10 jours","7 jours","9 jours"],"correct":"8 jours"},
+  {"id":19,"question":"NUIT est à JOUR ce que FROID est à :","options":["Chaud","Tiède","Glacé","Sombre"],"correct":"Chaud"},
+  {"id":20,"question":"Si A = 1, B = 2, C = 3... que vaut le mot 'FACE' ?","options":["14","15","16","17"],"correct":"14"}
+];
+
+const BONSENS_QUESTIONS = [
+  {"id":1,"question":"Un client te demande ton vrai prénom et ta localisation. Tu dois :","options":["Rester dans le personnage du modèle et donner des infos fictives cohérentes","Donner ton vrai prénom pour créer de la confiance","Refuser de répondre","Dire que tu n'as pas le droit de répondre"],"correct":"Rester dans le personnage du modèle et donner des infos fictives cohérentes"},
+  {"id":2,"question":"Un client t'envoie un message à 3h du matin. Tu le vois à 9h. Tu dois :","options":["Répondre dès que tu le vois avec un message chaleureux","Attendre midi pour ne pas avoir l'air trop disponible","Ne pas répondre car c'est un message nocturne suspect","Répondre 'Désolée j'étais au lit'"],"correct":"Répondre dès que tu le vois avec un message chaleureux"},
+  {"id":3,"question":"Un client dit qu'il a payé mais tu ne vois aucune transaction dans le système. Tu dois :","options":["Lui demander poliment une preuve de paiement et vérifier avec le gérant","Lui envoyer le contenu car le client a toujours raison","L'accuser de mentir","Ignorer le message"],"correct":"Lui demander poliment une preuve de paiement et vérifier avec le gérant"},
+  {"id":4,"question":"Tu gères 3 conversations en même temps. L'une d'elles est un client prêt à payer. Tu dois :","options":["Prioriser le client prêt à payer, répondre vite, puis revenir aux autres","Répondre dans l'ordre chronologique","Mettre les 3 en pause le temps de réfléchir","Demander aux 3 d'attendre"],"correct":"Prioriser le client prêt à payer, répondre vite, puis revenir aux autres"},
+  {"id":5,"question":"Un client te demande d'envoyer du contenu sur WhatsApp au lieu de Telegram. Tu dois :","options":["Refuser poliment et expliquer que tout passe par Telegram","Accepter si le client insiste","Donner ton WhatsApp personnel","Créer un WhatsApp business pour l'occasion"],"correct":"Refuser poliment et expliquer que tout passe par Telegram"},
+  {"id":6,"question":"Un client régulier te dit qu'il traverse une période difficile financièrement et demande du contenu gratuit. Tu dois :","options":["Être empathique mais proposer un produit moins cher ou une offre spéciale","Lui envoyer du contenu gratuit car c'est un bon client","Ignorer sa situation personnelle et insister sur le prix normal","Lui dire de revenir quand il aura de l'argent"],"correct":"Être empathique mais proposer un produit moins cher ou une offre spéciale"},
+  {"id":7,"question":"Tu remarques qu'un collègue chatter partage les prix de l'agence sur un forum public. Tu dois :","options":["Signaler immédiatement au manager/gérant","Confronter le collègue directement","Ne rien faire, ce n'est pas ton problème","Partager aussi tes infos pour être transparent"],"correct":"Signaler immédiatement au manager/gérant"},
+  {"id":8,"question":"Un client te demande un type de contenu que le modèle ne propose PAS. Tu dois :","options":["Expliquer ce qui n'est pas dispo et proposer des alternatives existantes","Promettre de le faire et voir plus tard","Dire juste 'Non' et passer à autre chose","Inventer un prix et accepter"],"correct":"Expliquer ce qui n'est pas dispo et proposer des alternatives existantes"},
+  {"id":9,"question":"Un client envoie un message offensant/vulgaire envers le modèle. Tu dois :","options":["Garder ton calme, poser une limite ferme mais polie, et signaler si ça continue","L'insulter en retour","Ignorer complètement le message","Bloquer immédiatement sans rien dire"],"correct":"Garder ton calme, poser une limite ferme mais polie, et signaler si ça continue"},
+  {"id":10,"question":"Tu n'as pas de nouvelles d'un client intéressé depuis 3 jours. Tu dois :","options":["Envoyer une relance amicale avec un petit teaser","Attendre qu'il revienne de lui-même","Envoyer 5 messages de relance d'affilée","Considérer le client comme perdu"],"correct":"Envoyer une relance amicale avec un petit teaser"},
+  {"id":11,"question":"Un client te demande une réduction sur un produit à 50 CHF. Tu dois :","options":["Justifier la valeur du produit et proposer un pack ou un petit bonus à la place","Baisser le prix de 50% immédiatement","Dire que les prix ne sont pas négociables et c'est tout","Lui donner un code promo inventé"],"correct":"Justifier la valeur du produit et proposer un pack ou un petit bonus à la place"},
+  {"id":12,"question":"Tu constates qu'un même client discute avec 3 modèles de l'agence en même temps. Tu dois :","options":["C'est normal — continuer à vendre sur ton modèle et potentiellement proposer un cross-sell","Le confronter et lui demander de choisir","Prévenir les autres chatters de ne plus lui répondre","Ignorer les autres conversations"],"correct":"C'est normal — continuer à vendre sur ton modèle et potentiellement proposer un cross-sell"},
+  {"id":13,"question":"Ton shift se termine dans 5 minutes mais un client est en plein milieu d'un achat. Tu dois :","options":["Finir la transaction même si ça dépasse ton shift","Dire au client que tu dois partir et qu'il peut revenir demain","Transférer la conversation au chatter suivant sans prévenir le client","Couper la conversation immédiatement"],"correct":"Finir la transaction même si ça dépasse ton shift"},
+  {"id":14,"question":"Un client te demande de le rencontrer en personne. Tu dois :","options":["Refuser catégoriquement mais garder la conversation en ligne positive","Accepter si le client paie assez","Dire 'peut-être un jour' pour le garder engagé","Bloquer le client immédiatement"],"correct":"Refuser catégoriquement mais garder la conversation en ligne positive"},
+  {"id":15,"question":"Tu as fait une erreur : tu as envoyé le mauvais contenu à un client. Tu dois :","options":["T'excuser immédiatement, envoyer le bon contenu, et offrir un petit bonus en compensation","Espérer que le client ne remarque pas","Dire que c'est le contenu qu'il a commandé","Supprimer le message et ne rien dire"],"correct":"T'excuser immédiatement, envoyer le bon contenu, et offrir un petit bonus en compensation"}
+];
+
+const FRENCH_QCM = [
+  {"id":1,"question":"Quelle phrase est correcte ?","options":["Je t'envoie le contenu dès que j'ai reçu le paiement.","Je t'envoi le contenu dès que j'ai reçu le payement.","Je t'envoies le contenu dès que j'ai reçus le paiement.","Je t'envoie le contenu dès que j'ai reçut le paiement."],"correct":"Je t'envoie le contenu dès que j'ai reçu le paiement."},
+  {"id":2,"question":"Quel mot est mal orthographié ?","options":["Apperçu","Néanmoins","Accueil","Apparemment"],"correct":"Apperçu"},
+  {"id":3,"question":"'Il faut que je _____ disponible ce soir.' Complétez :","options":["sois","suis","soit","serais"],"correct":"sois"},
+  {"id":4,"question":"Quelle phrase contient une faute ?","options":["Sa va être super !","Ça va être super !","Il a su convaincre le client.","Elle s'est bien débrouillée."],"correct":"Sa va être super !"},
+  {"id":5,"question":"'Les vidéos que j'ai _____ sont exclusives.' Complétez :","options":["envoyées","envoyé","envoyés","envoyée"],"correct":"envoyées"},
+  {"id":6,"question":"Quel est le pluriel de 'un contenu exclusif' ?","options":["Des contenus exclusifs","Des contenus exclusives","Des contenu exclusif","Des contenus exclusif"],"correct":"Des contenus exclusifs"},
+  {"id":7,"question":"Quelle formulation est la plus professionnelle pour un message client ?","options":["Je serais ravie de te montrer nos nouveautés !","Wsh regarde ça c trop bien","Si tu veux voir, c'est possible.","Ouais j'ai des trucs à te montrer"],"correct":"Je serais ravie de te montrer nos nouveautés !"},
+  {"id":8,"question":"'Quelque soit ton choix, je m'adapte.' Cette phrase est :","options":["Incorrecte — on dit 'Quel que soit ton choix'","Correcte","Incorrecte — on dit 'Quelques soient ton choix'","Incorrecte — on dit 'Quoique soit ton choix'"],"correct":"Incorrecte — on dit 'Quel que soit ton choix'"},
+  {"id":9,"question":"Le synonyme le plus proche de 'exclusif' dans un contexte commercial est :","options":["Unique","Cher","Secret","Rare"],"correct":"Unique"},
+  {"id":10,"question":"'Je vous remercie de votre confiance et espère que le contenu vous _____ .' Complétez :","options":["plaira","plairait","plait","plaise"],"correct":"plaira"}
+];
+
+const FRENCH_OPEN = [
+  {"id":1,"prompt":"Un client te dit : 'C'est trop cher pour ce que c'est.' Écris ta réponse en 2-3 phrases, comme si tu étais le modèle.","min_chars":30},
+  {"id":2,"prompt":"Décris en 3 phrases pourquoi un client devrait acheter du contenu exclusif plutôt que du contenu gratuit trouvé en ligne.","min_chars":50},
+  {"id":3,"prompt":"Un client fidèle revient après 1 mois d'absence. Écris-lui un message d'accueil personnalisé et chaleureux (2-3 phrases).","min_chars":40}
+];
+
+const MODELS = [
+  { id: "carla", name: "Carla", emoji: "😈", color: "#EF4444" },
+  { id: "sophie", name: "Sophie", emoji: "👑", color: "#F59E0B" },
+  { id: "bella", name: "Bella", emoji: "💋", color: "#EC4899" },
+  { id: "nadia", name: "Nadia", emoji: "✨", color: "#8B5CF6" },
+  { id: "lea", name: "Léa", emoji: "🌸", color: "#06B6D4" },
+  { id: "alice", name: "Alice", emoji: "🧿", color: "#10B981" },
+  { id: "maria", name: "Maria", emoji: "🌹", color: "#EC4899" }
+];
+
+const COUNTRIES = ["Suisse","France","Belgique","Canada","Allemagne","Autriche","Luxembourg","Liechtenstein","Italie","Espagne","Autres"];
+const LANGUAGES = ["Français","Anglais","Allemand","Italien","Espagnol","Portugais"];
+const EXPERIENCE = ["Aucune","< 6 mois","6-12 mois","> 1 an"];
+const AVAILABILITY = ["Matin 8-14","Après-midi 14-20","Soir 20-02","Nuit 02-08"];
+const SOURCES = ["Telegram","Instagram","Bouche à oreille","Autre"];
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function showToast(message, type = "info") {
+  toastMessage = message;
+  toastType = type;
+  toastVisible = true;
+  setTimeout(() => { toastVisible = false; }, 3000);
+}
+
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function normalizePhone(phone) {
+  return phone.replace(/[^\d+]/g, '');
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+
+function Toast() {
+  if (!toastVisible) return null;
+  const bgColor = {
+    success: "bg-green-500/20 border-green-500/50",
+    error: "bg-red-500/20 border-red-500/50",
+    warning: "bg-amber-500/20 border-amber-500/50",
+    info: "bg-blue-500/20 border-blue-500/50"
+  }[toastType] || "bg-blue-500/20 border-blue-500/50";
+
+  const textColor = {
+    success: "text-green-200",
+    error: "text-red-200",
+    warning: "text-amber-200",
+    info: "text-blue-200"
+  }[toastType] || "text-blue-200";
+
+  return (
+    <div className={`fixed top-4 right-4 ${bgColor} border ${textColor} px-4 py-3 rounded-lg z-50 smooth-fade`}>
+      {toastMessage}
+    </div>
+  );
+}
+
+function Landing() {
+  const params = new URLSearchParams(window.location.hash.split('?')[1]);
+  const ref = params.get('ref');
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center px-4">
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-bold mb-4 text-indigo-400">DADASH Watson</h1>
+        <p className="text-xl text-slate-300">Recrutement Chatters</p>
+      </div>
+
+      <div className="watson-card p-8 rounded-lg max-w-2xl text-center mb-8">
+        <p className="text-3xl font-bold mb-6 text-slate-50">
+          Tu veux devenir chatter pour une agence de modèles suisse ?
+        </p>
+        <p className="text-slate-300 mb-8 text-lg">
+          Joins-toi à notre équipe et génère des revenus en chattant avec des clients du monde entier.
+        </p>
+        <button
+          onClick={() => window.location.hash = '#/inscription'}
+          className="watson-primary text-white font-semibold py-3 px-8 rounded-lg text-lg hover:watson-primary transition"
+        >
+          Commencer le processus
+        </button>
+      </div>
+
+      <div className="text-slate-400 text-sm mt-8">
+        {ref && <p>📍 Parrainé par : {ref}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Inscription() {
+  const [formData, setFormData] = React.useState({
+    prenom: "",
+    nom: "",
+    email: "",
+    telephone: "",
+    telegram: "",
+    pays: "Suisse",
+    langues: ["Français"],
+    experience: "Aucune",
+    disponibilite: [],
+    source: "Telegram",
+    motivation: ""
+  });
+
+  const [loading, setLoading] = React.useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleMultiSelect = (name, value) => {
+    setFormData(prev => {
+      const arr = prev[name];
+      if (arr.includes(value)) {
+        return { ...prev, [name]: arr.filter(v => v !== value) };
+      } else {
+        return { ...prev, [name]: [...arr, value] };
+      }
+    });
+  };
+
+  const validate = () => {
+    if (!formData.prenom.trim() || formData.prenom.trim().length < 2) {
+      showToast("Prénom invalide (min 2 caractères)", "error");
+      return false;
+    }
+    if (!formData.nom.trim() || formData.nom.trim().length < 2) {
+      showToast("Nom invalide (min 2 caractères)", "error");
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      showToast("Email invalide", "error");
+      return false;
+    }
+    if (!formData.telephone.trim()) {
+      showToast("Téléphone requis", "error");
+      return false;
+    }
+    if (!formData.telegram.startsWith("@")) {
+      showToast("Username Telegram doit commencer par @", "error");
+      return false;
+    }
+    if (formData.langues.length === 0 || !formData.langues.includes("Français")) {
+      showToast("Français est obligatoire", "error");
+      return false;
+    }
+    if (formData.disponibilite.length === 0) {
+      showToast("Sélectionne au moins une disponibilité", "error");
+      return false;
+    }
+    if (formData.motivation.trim().length < 50) {
+      showToast("Motivation trop courte (min 50 caractères)", "error");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("watson_candidates")
+        .insert([{
+          firstname: formData.prenom,
+          lastname: formData.nom,
+          email: formData.email,
+          phone: normalizePhone(formData.telephone),
+          telegram: formData.telegram,
+          country: formData.pays,
+          languages: formData.langues,
+          experience: formData.experience,
+          availability: formData.disponibilite,
+          source: formData.source,
+          motivation: formData.motivation,
+          status: "inscription_completed"
+        }])
+        .select();
+
+      if (error) throw error;
+
+      const candidate = data[0];
+      currentCandidateId = candidate.id;
+      currentCandidateToken = candidate.token;
+
+      showToast("Inscription réussie! Passage au KYC...", "success");
+      setTimeout(() => {
+        window.location.hash = "#/kyc";
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Erreur lors de l'inscription", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6 text-indigo-400">Inscription</h1>
+
+        <form onSubmit={handleSubmit} className="watson-card p-6 rounded-lg space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" name="prenom" placeholder="Prénom *" value={formData.prenom} onChange={handleChange} className="watson-input" required />
+            <input type="text" name="nom" placeholder="Nom *" value={formData.nom} onChange={handleChange} className="watson-input" required />
+          </div>
+
+          <input type="email" name="email" placeholder="Email *" value={formData.email} onChange={handleChange} className="watson-input w-full" required />
+          <input type="tel" name="telephone" placeholder="Téléphone *" value={formData.telephone} onChange={handleChange} className="watson-input w-full" required />
+          <input type="text" name="telegram" placeholder="Telegram (@username) *" value={formData.telegram} onChange={handleChange} className="watson-input w-full" required />
+
+          <select name="pays" value={formData.pays} onChange={handleChange} className="watson-input w-full">
+            {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+          </select>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-200">Langues parlées * (Français obligatoire)</label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {LANGUAGES.map(lang => (
+                <label key={lang} className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={formData.langues.includes(lang)} onChange={() => handleMultiSelect("langues", lang)} className="mr-2" />
+                  {lang}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <select name="experience" value={formData.experience} onChange={handleChange} className="watson-input w-full">
+            <option disabled>Expérience chatting *</option>
+            {EXPERIENCE.map(e => <option key={e}>{e}</option>)}
+          </select>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-200">Disponibilités * (min 1)</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {AVAILABILITY.map(avail => (
+                <label key={avail} className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={formData.disponibilite.includes(avail)} onChange={() => handleMultiSelect("disponibilite", avail)} className="mr-2" />
+                  {avail}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <select name="source" value={formData.source} onChange={handleChange} className="watson-input w-full">
+            <option disabled>Comment nous as-tu trouvé ? *</option>
+            {SOURCES.map(s => <option key={s}>{s}</option>)}
+          </select>
+
+          <textarea name="motivation" placeholder="Motivation (min 50 caractères) *" value={formData.motivation} onChange={handleChange} className="watson-input w-full h-24" required />
+
+          <button type="submit" disabled={loading} className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full mt-6 hover:watson-primary disabled:opacity-50 transition">
+            {loading ? "Traitement..." : "Continuer vers KYC"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function KYC() {
+  const [loading, setLoading] = React.useState(false);
+  const [idFile, setIdFile] = React.useState(null);
+  const [selfieFile, setSelfieFile] = React.useState(null);
+
+  if (!currentCandidateId) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="watson-card p-8 rounded-lg text-center">
+          <p className="text-red-400 font-semibold">Session expirée. Recommence depuis l'inscription.</p>
+          <button onClick={() => window.location.hash = "#/"} className="watson-primary text-white py-2 px-4 rounded mt-4">
+            Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const validateFile = (file) => {
+    if (!file) {
+      showToast("Sélectionne un fichier", "error");
+      return false;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      showToast("Format JPG ou PNG requis", "error");
+      return false;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Fichier trop volumineux (max 5MB)", "error");
+      return false;
+    }
+    return true;
+  };
+
+  const handleUpload = async (e, fileType) => {
+    const file = e.target.files[0];
+    if (!validateFile(file)) return;
+
+    if (fileType === "id") {
+      setIdFile(file);
+    } else {
+      setSelfieFile(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!idFile || !selfieFile) {
+      showToast("Télécharge les deux photos", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Upload ID photo
+      const idPath = `${currentCandidateId}/id_front.jpg`;
+      const { error: idErr } = await supabase.storage.from("watson-kyc").upload(idPath, idFile, { upsert: true });
+      if (idErr) throw idErr;
+
+      // Upload selfie
+      const selfiePath = `${currentCandidateId}/selfie.jpg`;
+      const { error: selfieErr } = await supabase.storage.from("watson-kyc").upload(selfiePath, selfieFile, { upsert: true });
+      if (selfieErr) throw selfieErr;
+
+      // Update candidate status
+      const { error: updateErr } = await supabase
+        .from("watson_candidates")
+        .update({ status: "kyc_submitted" })
+        .eq("id", currentCandidateId);
+      if (updateErr) throw updateErr;
+
+      showToast("KYC soumis! Passage au test QI...", "success");
+      setTimeout(() => {
+        window.location.hash = "#/test/qi";
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Erreur lors du téléchargement", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2 text-indigo-400">Vérification Identité (KYC)</h1>
+        <p className="text-slate-400 mb-6">Envoie une photo d'identité (avant) + un selfie avec ta pièce d'identité</p>
+
+        <form onSubmit={handleSubmit} className="watson-card p-6 rounded-lg space-y-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-200">Photo Pièce d'Identité (JPG/PNG, max 5MB) *</label>
+            <input type="file" accept="image/jpeg,image/png" onChange={(e) => handleUpload(e, "id")} className="watson-input w-full" />
+            {idFile && <p className="text-green-400 text-sm">✓ {idFile.name}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-200">Selfie avec Pièce d'Identité (JPG/PNG, max 5MB) *</label>
+            <input type="file" accept="image/jpeg,image/png" onChange={(e) => handleUpload(e, "selfie")} className="watson-input w-full" />
+            {selfieFile && <p className="text-green-400 text-sm">✓ {selfieFile.name}</p>}
+          </div>
+
+          <button type="submit" disabled={loading} className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full hover:watson-primary disabled:opacity-50 transition">
+            {loading ? "Téléchargement..." : "Continuer vers Test QI"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TestQCM({ type, questions, duration, threshold, nextPath, onComplete }) {
+  const [currentIdx, setCurrentIdx] = React.useState(0);
+  const [answers, setAnswers] = React.useState({});
+  const [timeLeft, setTimeLeft] = React.useState(duration);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
+
+  const [shuffledQuestions, setShuffledQuestions] = React.useState([]);
+  const [shuffledOptions, setShuffledOptions] = React.useState({});
+
+  React.useEffect(() => {
+    const q = shuffleArray(questions);
+    setShuffledQuestions(q);
+    const opts = {};
+    q.forEach(qitem => {
+      opts[qitem.id] = shuffleArray(qitem.options);
+    });
+    setShuffledOptions(opts);
+  }, []);
+
+  React.useEffect(() => {
+    if (hasSubmitted || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          handleSubmit();
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [hasSubmitted]);
+
+  const currentQ = shuffledQuestions[currentIdx];
+  const isDanger = timeLeft < 60;
+
+  const handleAnswer = (option) => {
+    setAnswers(prev => ({ ...prev, [currentQ.id]: option }));
+  };
+
+  const handleNext = () => {
+    if (currentIdx < shuffledQuestions.length - 1) {
+      setCurrentIdx(currentIdx + 1);
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleSubmit = async () => {
+    setHasSubmitted(true);
+
+    let score = 0;
+    shuffledQuestions.forEach(q => {
+      if (answers[q.id] === q.correct) score++;
+    });
+
+    const percentage = (score / shuffledQuestions.length) * 100;
+
+    if (score < threshold) {
+      showToast(`Score: ${score}/${shuffledQuestions.length}. Éliminé(e).`, "error");
+      setTimeout(() => {
+        window.location.hash = "#/";
+      }, 2000);
+      return;
+    }
+
+    const resultData = {
+      candidate_id: currentCandidateId,
+      test_type: type,
+      score: score,
+      total: shuffledQuestions.length,
+      percentage: percentage
+    };
+
+    try {
+      if (type === "qi") {
+        const { error } = await supabase
+          .from("watson_candidates")
+          .update({ score_qi: score, status: "qi_completed" })
+          .eq("id", currentCandidateId);
+        if (error) throw error;
+      } else if (type === "bonsens") {
+        const { error } = await supabase
+          .from("watson_candidates")
+          .update({ score_bonsens: score, status: "bonsens_completed" })
+          .eq("id", currentCandidateId);
+        if (error) throw error;
+      }
+
+      showToast(`Score: ${score}/${shuffledQuestions.length}`, "success");
+      setTimeout(() => {
+        window.location.hash = nextPath;
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la sauvegarde", "error");
+    }
+  };
+
+  if (!currentQ || Object.keys(shuffledOptions).length === 0) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>;
+  }
+
+  const progress = ((currentIdx + 1) / shuffledQuestions.length) * 100;
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-indigo-400">Test {type.toUpperCase()}</h1>
+          <div className={`text-2xl font-bold ${isDanger ? 'timer-danger' : 'text-slate-300'}`}>
+            {formatTime(timeLeft)}
+          </div>
+        </div>
+
+        <div className="w-full bg-slate-700 rounded-full h-2 mb-6">
+          <div className="bg-indigo-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+        </div>
+
+        <p className="text-slate-400 mb-2">Question {currentIdx + 1} / {shuffledQuestions.length}</p>
+
+        <div className="watson-card p-8 rounded-lg mb-6">
+          <h2 className="text-xl font-semibold mb-6 text-slate-50">{currentQ.question}</h2>
+
+          <div className="space-y-3">
+            {(shuffledOptions[currentQ.id] || []).map((opt, idx) => (
+              <label key={idx} className="flex items-center p-4 border border-slate-600 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+                <input
+                  type="radio"
+                  name="answer"
+                  checked={answers[currentQ.id] === opt}
+                  onChange={() => handleAnswer(opt)}
+                  className="mr-4"
+                />
+                {opt}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={handleNext}
+          disabled={!answers[currentQ.id]}
+          className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full hover:watson-primary disabled:opacity-50 transition"
+        >
+          {currentIdx === shuffledQuestions.length - 1 ? "Soumettre" : "Suivant"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TestFrancais() {
+  const [part, setPart] = React.useState(1); // 1 = QCM, 2 = Rédaction
+  const [qcmAnswers, setQcmAnswers] = React.useState({});
+  const [redactionAnswers, setRedactionAnswers] = React.useState({});
+  const [timeLeft, setTimeLeft] = React.useState(20 * 60);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+
+  const [shuffledQCM, setShuffledQCM] = React.useState([]);
+  const [shuffledOptions, setShuffledOptions] = React.useState({});
+
+  React.useEffect(() => {
+    const q = shuffleArray(FRENCH_QCM);
+    setShuffledQCM(q);
+    const opts = {};
+    q.forEach(qitem => {
+      opts[qitem.id] = shuffleArray(qitem.options);
+    });
+    setShuffledOptions(opts);
+  }, []);
+
+  React.useEffect(() => {
+    if (hasSubmitted || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          handleSubmit();
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [hasSubmitted]);
+
+  const isDanger = timeLeft < 60;
+
+  const handleQCMAnswer = (qId, option) => {
+    setQcmAnswers(prev => ({ ...prev, [qId]: option }));
+  };
+
+  const handleRedactionAnswer = (idx, text) => {
+    setRedactionAnswers(prev => ({ ...prev, [idx]: text }));
+  };
+
+  const validateRedactions = () => {
+    for (let i = 0; i < FRENCH_OPEN.length; i++) {
+      const text = redactionAnswers[i] || "";
+      if (text.trim().length < FRENCH_OPEN[i].min_chars) {
+        showToast(`Rédaction ${i + 1}: min ${FRENCH_OPEN[i].min_chars} caractères`, "error");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (part === 1) {
+      setPart(2);
+      return;
+    }
+
+    if (!validateRedactions()) return;
+
+    setHasSubmitted(true);
+    setLoading(true);
+
+    try {
+      // Score QCM
+      let qcmScore = 0;
+      shuffledQCM.forEach(q => {
+        if (qcmAnswers[q.id] === q.correct) qcmScore++;
+      });
+
+      // Prepare redaction texts
+      const redactions = FRENCH_OPEN.map((_, idx) => redactionAnswers[idx] || "");
+
+      // Send to API for evaluation
+      const evalRes = await fetch("/api/evaluate-french", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidate_id: currentCandidateId,
+          qcm_score: qcmScore,
+          qcm_total: shuffledQCM.length,
+          redactions: redactions
+        })
+      });
+
+      if (!evalRes.ok) {
+        const err = await evalRes.json();
+        throw new Error(err.error || "Erreur API");
+      }
+
+      const evalData = await evalRes.json();
+      const totalScore = qcmScore + evalData.redaction_score; // 0-10 + 0-10 = 0-20
+
+      if (totalScore < 10) {
+        showToast(`Score Français: ${totalScore}/20. Éliminé(e).`, "error");
+        setTimeout(() => {
+          window.location.hash = "#/";
+        }, 2000);
+        return;
+      }
+
+      // Update candidate
+      const { error } = await supabase
+        .from("watson_candidates")
+        .update({ score_francais: totalScore, status: "francais_completed" })
+        .eq("id", currentCandidateId);
+      if (error) throw error;
+
+      showToast("Test Français réussi! Passage au test en direct...", "success");
+      setTimeout(() => {
+        window.location.hash = "#/test/simulation";
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Erreur lors de la soumission", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (part === 1) {
+    if (shuffledQCM.length === 0) {
+      return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>;
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-900 px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-indigo-400">Test Français - QCM</h1>
+            <div className={`text-2xl font-bold ${isDanger ? 'timer-danger' : 'text-slate-300'}`}>
+              {formatTime(timeLeft)}
+            </div>
+          </div>
+
+          <div className="watson-card p-8 rounded-lg space-y-6">
+            {shuffledQCM.map((q, idx) => (
+              <div key={q.id} className="space-y-3 pb-6 border-b border-slate-600 last:border-0">
+                <p className="text-sm text-slate-400">Question {idx + 1} / {shuffledQCM.length}</p>
+                <h3 className="font-semibold text-slate-50">{q.question}</h3>
+                <div className="space-y-2">
+                  {(shuffledOptions[q.id] || []).map((opt, optIdx) => (
+                    <label key={optIdx} className="flex items-center p-3 border border-slate-600 rounded-lg cursor-pointer hover:bg-slate-700/50 transition">
+                      <input
+                        type="radio"
+                        name={`q${q.id}`}
+                        checked={qcmAnswers[q.id] === opt}
+                        onChange={() => handleQCMAnswer(q.id, opt)}
+                        className="mr-3"
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setPart(2)}
+            className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full mt-6 hover:watson-primary transition"
+          >
+            Continuer vers Rédactions
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-indigo-400">Test Français - Rédactions</h1>
+          <div className={`text-2xl font-bold ${isDanger ? 'timer-danger' : 'text-slate-300'}`}>
+            {formatTime(timeLeft)}
+          </div>
+        </div>
+
+        <div className="watson-card p-8 rounded-lg space-y-8">
+          {FRENCH_OPEN.map((q, idx) => (
+            <div key={idx} className="space-y-3">
+              <h3 className="font-semibold text-slate-50">Rédaction {idx + 1} / {FRENCH_OPEN.length}</h3>
+              <p className="text-sm text-slate-400">{q.prompt}</p>
+              <textarea
+                value={redactionAnswers[idx] || ""}
+                onChange={(e) => handleRedactionAnswer(idx, e.target.value)}
+                className="watson-input w-full h-24"
+                placeholder={`Min ${q.min_chars} caractères...`}
+              />
+              <p className="text-xs text-slate-400">
+                {(redactionAnswers[idx] || "").length} / {q.min_chars} caractères
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full mt-6 hover:watson-primary disabled:opacity-50 transition"
+        >
+          {loading ? "Traitement..." : "Soumettre & Continuer"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TestSimulation() {
+  const [step, setStep] = React.useState("model_select");
+  const [selectedModel, setSelectedModel] = React.useState(null);
+  const [currentScenarioIdx, setCurrentScenarioIdx] = React.useState(0);
+  const [chatMessages, setChatMessages] = React.useState([]);
+  const [conversationHistory, setConversationHistory] = React.useState([]);
+  const [userInput, setUserInput] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [scenarioTimer, setScenarioTimer] = React.useState(300);
+  const [scenarioScore, setScenarioScore] = React.useState(0);
+  const [scenarioFeedback, setScenarioFeedback] = React.useState("");
+  const [allScores, setAllScores] = React.useState([]);
+  const [responseTimes, setResponseTimes] = React.useState([]);
+  const [lastMessageTime, setLastMessageTime] = React.useState(null);
+  const [evaluating, setEvaluating] = React.useState(false);
+  const chatEndRef = React.useRef(null);
+
+  const scenarios = [
+    { id: 1, name: "Le Nouveau Curieux", briefing: "Tu es sur le compte de {model}. Un nouveau spender t'écrit pour la première fois.", chatter_initiates: false },
+    { id: 2, name: "Le Hot Lead", briefing: "Le spender est déjà chaud. Il a vu les produits et veut acheter.", chatter_initiates: false },
+    { id: 3, name: "La Négociation", briefing: "Le spender veut du contenu mais trouve ça cher.", chatter_initiates: false },
+    { id: 4, name: "Le Ghosteur", briefing: "Le spender avait montré de l'intérêt hier mais n'a plus répondu depuis 24h. Son dernier message était : 'Oui ça m'intéresse, je regarde ça ce soir'. C'est À TOI de relancer.", chatter_initiates: true },
+    { id: 5, name: "Le Mécontent", briefing: "Un spender qui a déjà acheté revient en colère.", chatter_initiates: false },
+    { id: 6, name: "Le Bavard", briefing: "Un spender discute depuis 10 messages sans jamais parler d'achat. C'est la 11ème interaction.", chatter_initiates: false },
+    { id: 7, name: "Le Multi-Modèle", briefing: "Le spender mentionne un autre modèle de l'agence.", chatter_initiates: false },
+    { id: 8, name: "L'Urgence", briefing: "Le spender veut acheter MAINTENANT mais a des contraintes de temps.", chatter_initiates: false },
+    { id: 9, name: "Le Récurrent", briefing: "Un ancien client qui revient après 1 mois. Il a déjà acheté 3 fois.", chatter_initiates: false },
+    { id: 10, name: "Le Scammer", briefing: "Un spender qui tente de contourner le système.", chatter_initiates: false }
+  ];
+
+  React.useEffect(() => {
+    if (step !== "chat" || scenarioTimer <= 0) return;
+    const timer = setInterval(() => {
+      setScenarioTimer(t => {
+        if (t <= 1) { handleEndScenario(); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [step, scenarioTimer]);
+
+  React.useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  const handleModelSelect = async (model) => {
+    setSelectedModel(model);
+    // Save chosen model
+    await supabase.from("watson_candidates").update({ chosen_model: model.name }).eq("id", currentCandidateId);
+    setStep("scenario_brief");
+    setChatMessages([]);
+    setConversationHistory([]);
+    setScenarioTimer(300);
+  };
+
+  const handleStartScenario = async () => {
+    setStep("chat");
+    setChatMessages([]);
+    setConversationHistory([]);
+    setResponseTimes([]);
+    setScenarioTimer(300);
+    setLastMessageTime(Date.now());
+
+    const scenario = scenarios[currentScenarioIdx];
+    if (scenario.chatter_initiates) {
+      setLastMessageTime(Date.now());
+      return; // Candidate must send first
+    }
+
+    // Get first message from AI
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidate_id: currentCandidateId,
+          scenario_id: scenario.id,
+          message: null,
+          conversation_history: [],
+          chosen_model: selectedModel.name
+        })
+      });
+
+      if (!res.ok) throw new Error("Erreur API");
+      const data = await res.json();
+
+      const newMsg = { role: "spender", text: data.response, timestamp: new Date().toISOString() };
+      setChatMessages([newMsg]);
+      setConversationHistory([newMsg]);
+      setLastMessageTime(Date.now());
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors du chargement du scénario", "error");
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!userInput.trim() || loading) return;
+
+    const userMsg = userInput.trim();
+    const now = Date.now();
+    const responseTime = lastMessageTime ? Math.round((now - lastMessageTime) / 1000) : 0;
+
+    setUserInput("");
+    const chatterMsg = { role: "chatter", text: userMsg, timestamp: new Date().toISOString() };
+    const newHistory = [...conversationHistory, chatterMsg];
+
+    setChatMessages(prev => [...prev, chatterMsg]);
+    setConversationHistory(newHistory);
+    setResponseTimes(prev => [...prev, responseTime]);
+    setLoading(true);
+
+    try {
+      const scenario = scenarios[currentScenarioIdx];
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidate_id: currentCandidateId,
+          scenario_id: scenario.id,
+          message: userMsg,
+          conversation_history: newHistory,
+          chosen_model: selectedModel.name
+        })
+      });
+
+      if (!res.ok) throw new Error("Erreur API");
+      const data = await res.json();
+
+      const spenderMsg = { role: "spender", text: data.response, timestamp: new Date().toISOString() };
+      setChatMessages(prev => [...prev, spenderMsg]);
+      setConversationHistory(prev => [...prev, spenderMsg]);
+      setLastMessageTime(Date.now());
+
+      if (data.is_scenario_complete) {
+        handleEndScenario([...newHistory, spenderMsg]);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'envoi du message", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEndScenario = async (finalConversation) => {
+    const conv = finalConversation || conversationHistory;
+    const scenario = scenarios[currentScenarioIdx];
+    setEvaluating(true);
+    setStep("scenario_end");
+
+    try {
+      // Call evaluate API
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidate_id: currentCandidateId,
+          scenario_id: scenario.id,
+          conversation: conv
+        })
+      });
+
+      let score = 0;
+      let feedback = "";
+      let breakdown = {};
+
+      if (res.ok) {
+        const evalData = await res.json();
+        score = evalData.score || 0;
+        feedback = evalData.feedback || "";
+        breakdown = evalData.breakdown || {};
+      }
+
+      setScenarioScore(score);
+      setScenarioFeedback(feedback);
+      setAllScores(prev => [...prev, { scenario_id: scenario.id, score, breakdown, feedback }]);
+
+      // Save to watson_test_results
+      await supabase.from("watson_test_results").insert({
+        candidate_id: currentCandidateId,
+        test_type: "live",
+        scenario_number: scenario.id,
+        question_text: scenario.name,
+        conversation: conv,
+        scenario_score: score,
+        scenario_breakdown: breakdown,
+        response_times: responseTimes,
+        points_earned: score,
+        points_possible: 10
+      });
+    } catch (err) {
+      console.error(err);
+      setScenarioScore(0);
+      setScenarioFeedback("Erreur lors de l'évaluation");
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const handleNextScenario = () => {
+    if (currentScenarioIdx < scenarios.length - 1) {
+      setCurrentScenarioIdx(currentScenarioIdx + 1);
+      setStep("scenario_brief");
+      setChatMessages([]);
+      setConversationHistory([]);
+      setScenarioTimer(300);
+      setLastMessageTime(null);
+    } else {
+      handleFinishAllScenarios();
+    }
+  };
+
+  const handleFinishAllScenarios = async () => {
+    try {
+      // Calculate total live score (/100)
+      const totalLive = allScores.reduce((sum, s) => sum + s.score, 0);
+      const scoreLive = Math.round(totalLive * 10); // Each scenario /10, total *10 = /100
+
+      // Calculate avg response time
+      const allResponseTimes = responseTimes.length > 0
+        ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+        : 0;
+
+      // Calculate closing rate (scenarios 2, 3, 6, 8, 9)
+      const closingScenarios = [2, 3, 6, 8, 9];
+      const closingScores = allScores.filter(s => closingScenarios.includes(s.scenario_id));
+      const closingRate = closingScores.length > 0
+        ? closingScores.filter(s => s.score >= 6).length / closingScores.length
+        : 0;
+
+      // Get proactivity score (scenario 4)
+      const proactivityEntry = allScores.find(s => s.scenario_id === 4);
+      const proactivityScore = proactivityEntry ? proactivityEntry.score : 0;
+
+      const { error } = await supabase
+        .from("watson_candidates")
+        .update({
+          score_live: scoreLive,
+          avg_response_time_seconds: Math.round(allResponseTimes * 10) / 10,
+          avg_messages_per_scenario: chatMessages.length / scenarios.length,
+          closing_rate: Math.round(closingRate * 100) / 100,
+          proactivity_score: proactivityScore,
+          status: "completed"
+        })
+        .eq("id", currentCandidateId);
+      if (error) throw error;
+
+      // Calculate & save total weighted score
+      const { data: cand } = await supabase
+        .from("watson_candidates")
+        .select("score_qi, score_bonsens, score_francais_total, score_live, bonus_orthographe, bonus_emojis, malus_total")
+        .eq("id", currentCandidateId)
+        .single();
+
+      if (cand) {
+        const bonusTotal = (cand.bonus_orthographe || 0) + (cand.bonus_emojis || 0);
+        const malusTotal = cand.malus_total || 0;
+        const scoreTotal = Math.min(100, Math.max(0,
+          (cand.score_qi || 0) / 20 * 10 +
+          (cand.score_bonsens || 0) / 15 * 10 +
+          (cand.score_francais_total || 0) / 20 * 15 +
+          (cand.score_live || 0) / 100 * 65 +
+          bonusTotal + malusTotal
+        ));
+
+        let level = "elimine";
+        if (scoreTotal >= 85) level = "elite";
+        else if (scoreTotal >= 70) level = "performant";
+        else if (scoreTotal >= 55) level = "acceptable";
+        else if (scoreTotal >= 40) level = "faible";
+
+        await supabase
+          .from("watson_candidates")
+          .update({ score_total: Math.round(scoreTotal * 10) / 10, level })
+          .eq("id", currentCandidateId);
+      }
+
+      window.location.hash = "#/resultats";
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la finalisation", "error");
+    }
+  };
+
+  if (step === "model_select") {
+    return (
+      <div className="min-h-screen bg-slate-900 px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-2 text-indigo-400">Test en Direct - Choisir un Modèle</h1>
+          <p className="text-slate-400 mb-8">Sélectionne le modèle que tu vas incarner pour les 10 scénarios.</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {MODELS.map(model => (
+              <button
+                key={model.id}
+                onClick={() => handleModelSelect(model)}
+                className="watson-card p-6 rounded-lg text-center hover:border-indigo-500 transition border-2 border-slate-700"
+              >
+                <div className="text-4xl mb-2">{model.emoji}</div>
+                <div className="font-semibold text-slate-50">{model.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedModel) return null;
+
+  const scenario = scenarios[currentScenarioIdx];
+  const progress = ((currentScenarioIdx + 1) / scenarios.length) * 100;
+
+  if (step === "scenario_brief") {
+    return (
+      <div className="min-h-screen bg-slate-900 px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <p className="text-slate-400 mb-2">Scénario {currentScenarioIdx + 1} / {scenarios.length}</p>
+          <h1 className="text-3xl font-bold mb-6 text-indigo-400">{scenario.name}</h1>
+
+          <div className="w-full bg-slate-700 rounded-full h-2 mb-8">
+            <div className="bg-indigo-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+          </div>
+
+          <div className="watson-card p-8 rounded-lg mb-8">
+            <p className="text-slate-300 text-lg mb-4">Contexte:</p>
+            <p className="text-slate-50 text-xl">{scenario.briefing}</p>
+
+            {scenario.chatter_initiates && (
+              <p className="text-amber-400 mt-6 font-semibold">⚠️ Tu dois envoyer le premier message!</p>
+            )}
+          </div>
+
+          <button
+            onClick={handleStartScenario}
+            className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full hover:watson-primary transition"
+          >
+            Commencer le Scénario
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "chat") {
+    const isDanger = scenarioTimer < 60;
+
+    return (
+      <div className="min-h-screen bg-slate-900 px-4 py-8 flex flex-col">
+        <div className="max-w-2xl mx-auto w-full flex flex-col h-screen -my-8">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <p className="text-slate-400 text-sm">Scénario {currentScenarioIdx + 1} / {scenarios.length}</p>
+              <h1 className="text-2xl font-bold text-indigo-400">{scenario.name}</h1>
+            </div>
+            <div className={`text-2xl font-bold ${isDanger ? 'timer-danger' : 'text-slate-300'}`}>
+              {formatTime(scenarioTimer)}
+            </div>
+          </div>
+
+          <div className="watson-card p-4 rounded-lg flex-1 overflow-y-auto mb-4 space-y-4">
+            {chatMessages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === "chatter" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "spender" && <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center mr-2 mt-1 text-sm">👤</div>}
+                <div
+                  className={`max-w-xs px-4 py-3 rounded-lg text-sm ${
+                    msg.role === "chatter"
+                      ? "msg-sent text-white"
+                      : "msg-received text-slate-50"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center mr-2 mt-1 text-sm">👤</div>
+                <div className="msg-received text-slate-400 px-4 py-3 rounded-lg">
+                  En train de taper...
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+              placeholder="Écris ta réponse..."
+              className="watson-input flex-1"
+              disabled={loading}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!userInput.trim() || loading}
+              className="watson-primary text-white font-semibold py-3 px-6 rounded-lg hover:watson-primary disabled:opacity-50 transition"
+            >
+              Envoyer
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "scenario_end") {
+    return (
+      <div className="min-h-screen bg-slate-900 px-4 py-8">
+        <div className="max-w-2xl mx-auto text-center">
+          {evaluating ? (
+            <>
+              <div className="text-4xl mb-4 animate-pulse">🔍</div>
+              <h1 className="text-2xl font-bold mb-4 text-indigo-400">Évaluation en cours...</h1>
+              <p className="text-slate-400">L'IA analyse ta performance sur ce scénario.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold mb-4 text-green-400">Scénario Terminé</h1>
+              <p className="text-slate-300 text-lg mb-2">Scénario {currentScenarioIdx + 1} / {scenarios.length}</p>
+              <div className="watson-card p-6 rounded-lg mb-6 inline-block">
+                <p className="text-5xl font-bold text-indigo-400 mb-2">{scenarioScore}/10</p>
+              </div>
+              {scenarioFeedback && <p className="text-slate-400 mb-8 italic">"{scenarioFeedback}"</p>}
+
+              <button
+                onClick={handleNextScenario}
+                className="watson-primary text-white font-semibold py-3 px-6 rounded-lg hover:watson-primary transition"
+              >
+                {currentScenarioIdx === scenarios.length - 1 ? "Voir mes Résultats" : "Scénario Suivant"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+}
+
+function Resultats() {
+  const [candidate, setCandidate] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchCandidate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("watson_candidates")
+          .select("*")
+          .eq("id", currentCandidateId)
+          .single();
+        if (error) throw error;
+        setCandidate(data);
+      } catch (err) {
+        console.error(err);
+        showToast("Erreur lors du chargement des résultats", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCandidate();
+  }, []);
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>;
+  }
+
+  if (!candidate) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-red-400">Erreur de chargement</div>;
+  }
+
+  // Score pondéré : QI 10% + Bon Sens 10% + Français 15% + Live 65%
+  const bonusTotal = (candidate.bonus_orthographe || 0) + (candidate.bonus_emojis || 0);
+  const malusTotal = candidate.malus_total || 0;
+  const totalScore = Math.min(100, Math.max(0,
+    (candidate.score_qi || 0) / 20 * 10 +
+    (candidate.score_bonsens || 0) / 15 * 10 +
+    (candidate.score_francais_total || 0) / 20 * 15 +
+    (candidate.score_live || 0) / 100 * 65 +
+    bonusTotal + malusTotal
+  ));
+
+  let level = "ÉLIMINÉ";
+  let levelColor = "text-red-400";
+  let message = "Tu n'as pas atteint le score minimum.";
+
+  if (totalScore >= 85) {
+    level = "ELITE";
+    levelColor = "text-green-400";
+    message = "Félicitations! Tu es considéré(e) comme un(e) excellent(e) chatter. Nous te contacterons bientôt.";
+  } else if (totalScore >= 70) {
+    level = "PERFORMANT";
+    levelColor = "text-blue-400";
+    message = "Bon score! Tu es considéré(e) comme performant(e). Nous te contacterons pour discuter des prochaines étapes.";
+  } else if (totalScore >= 55) {
+    level = "ACCEPTABLE";
+    levelColor = "text-yellow-400";
+    message = "Tu as un score acceptable. Nous examinerons ta candidature et te contacterons.";
+  } else if (totalScore >= 40) {
+    level = "FAIBLE";
+    levelColor = "text-orange-400";
+    message = "Ton score est faible. Nous te suggérons de repasser le test ultérieurement.";
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-2xl mx-auto text-center">
+        <h1 className="text-4xl font-bold mb-8 text-indigo-400">Résultats</h1>
+
+        <div className="watson-card p-8 rounded-lg mb-8">
+          <div className="text-6xl font-bold text-slate-50 mb-4">{Math.round(totalScore)}</div>
+          <p className={`text-3xl font-bold ${levelColor} mb-6`}>{level}</p>
+          <p className="text-slate-300 text-lg">{message}</p>
+        </div>
+
+        <div className="watson-card p-6 rounded-lg mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-slate-400 text-sm">QI</p>
+            <p className="text-2xl font-bold text-slate-50">{candidate.score_qi || "-"}/20</p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-sm">Bon Sens</p>
+            <p className="text-2xl font-bold text-slate-50">{candidate.score_bonsens || "-"}/15</p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-sm">Français</p>
+            <p className="text-2xl font-bold text-slate-50">{candidate.score_francais_total || "-"}/20</p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-sm">En Direct</p>
+            <p className="text-2xl font-bold text-slate-50">{candidate.score_live || "-"}/100</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => window.location.hash = "#/"}
+          className="watson-primary text-white font-semibold py-3 px-6 rounded-lg hover:watson-primary transition"
+        >
+          Retour à l'accueil
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminLogin() {
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      // Fetch user profile to check role
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!["gerant", "manager_chatter"].includes(profile.role)) {
+        showToast("Accès non autorisé. Rôle requis: gérant ou manager_chatter", "error");
+        return;
+      }
+
+      currentAdminUserId = profile.id;
+      currentAdminRole = profile.role;
+
+      showToast("Connexion réussie!", "success");
+      setTimeout(() => {
+        window.location.hash = "#/admin";
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Erreur de connexion", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <div className="watson-card p-8 rounded-lg max-w-md w-full">
+        <h1 className="text-3xl font-bold mb-6 text-indigo-400 text-center">Admin Watson</h1>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="watson-input w-full"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Mot de passe"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="watson-input w-full"
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="watson-primary text-white font-semibold py-3 px-6 rounded-lg w-full hover:watson-primary disabled:opacity-50 transition"
+          >
+            {loading ? "Connexion..." : "Se Connecter"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AdminDashboard() {
+  const [candidates, setCandidates] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [filters, setFilters] = React.useState({ status: "", level: "" });
+  const [sortBy, setSortBy] = React.useState("score_total");
+
+  React.useEffect(() => {
+    fetchCandidates();
+  }, [filters, sortBy]);
+
+  const fetchCandidates = async () => {
+    try {
+      let query = supabase.from("watson_candidates").select("*");
+
+      if (filters.status) {
+        query = query.eq("status", filters.status);
+      }
+
+      if (currentAdminRole === "manager_chatter") {
+        query = query.eq("invited_by", currentAdminUserId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setCandidates(data || []);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors du chargement", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    currentAdminUserId = null;
+    currentAdminRole = null;
+    window.location.hash = "#/admin-login";
+  };
+
+  const handleGenerateLink = () => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    const link = `${baseUrl}#/?ref=${currentAdminUserId}`;
+    navigator.clipboard.writeText(link);
+    showToast("Lien d'invitation copié!", "success");
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["Nom", "Email", "Téléphone", "Score QI", "Score Bon Sens", "Score Français", "Score En Direct", "Statut"];
+    const rows = candidates.map(c => [
+      `${c.firstname} ${c.lastname}`,
+      c.email,
+      c.phone,
+      c.score_qi || "-",
+      c.score_bonsens || "-",
+      c.score_francais || "-",
+      c.score_live || "-",
+      c.status
+    ]);
+
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "candidates.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-indigo-400">Admin Dashboard</h1>
+          <button
+            onClick={handleLogout}
+            className="text-red-400 hover:text-red-300 font-semibold"
+          >
+            Déconnexion
+          </button>
+        </div>
+
+        <div className="watson-card p-6 rounded-lg mb-8 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button
+              onClick={handleGenerateLink}
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+            >
+              Générer Lien
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+            >
+              Exporter CSV
+            </button>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+              className="watson-input"
+            >
+              <option value="">Tous les statuts</option>
+              <option>inscription_completed</option>
+              <option>kyc_submitted</option>
+              <option>qi_completed</option>
+              <option>bonsens_completed</option>
+              <option>francais_completed</option>
+              <option>simulation_completed</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="watson-card p-6 rounded-lg overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-600">
+                <th className="text-left py-3 px-2">Nom</th>
+                <th className="text-left py-3 px-2">Email</th>
+                <th className="text-left py-3 px-2">Statut</th>
+                <th className="text-center py-3 px-2">QI</th>
+                <th className="text-center py-3 px-2">Bon Sens</th>
+                <th className="text-center py-3 px-2">Français</th>
+                <th className="text-center py-3 px-2">En Direct</th>
+                <th className="text-center py-3 px-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map(c => (
+                <tr key={c.id} className="border-b border-slate-600 hover:bg-slate-700/30 transition">
+                  <td className="py-3 px-2">{c.firstname} {c.lastname}</td>
+                  <td className="py-3 px-2 text-slate-400">{c.email}</td>
+                  <td className="py-3 px-2 text-xs bg-slate-700 px-2 py-1 rounded inline-block">{c.status}</td>
+                  <td className="text-center py-3 px-2">{c.score_qi || "-"}/20</td>
+                  <td className="text-center py-3 px-2">{c.score_bonsens || "-"}/15</td>
+                  <td className="text-center py-3 px-2">{c.score_francais || "-"}/20</td>
+                  <td className="text-center py-3 px-2">{c.score_live || "-"}/100</td>
+                  <td className="text-center py-3 px-2">
+                    <button
+                      onClick={() => window.location.hash = `#/admin/candidat/${c.id}`}
+                      className="text-indigo-400 hover:text-indigo-300 font-semibold text-xs"
+                    >
+                      Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminCandidateDetail({ candidateId }) {
+  const [candidate, setCandidate] = React.useState(null);
+  const [idPhoto, setIdPhoto] = React.useState(null);
+  const [selfiePhoto, setSelfiePhoto] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [adminNotes, setAdminNotes] = React.useState("");
+  const [action, setAction] = React.useState(null);
+
+  React.useEffect(() => {
+    fetchCandidateDetail();
+  }, [candidateId]);
+
+  const fetchCandidateDetail = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("watson_candidates")
+        .select("*")
+        .eq("id", candidateId)
+        .single();
+
+      if (error) throw error;
+      setCandidate(data);
+      setAdminNotes(data.admin_notes || "");
+
+      // Load KYC photos from Supabase Storage
+      if (data.kyc_photos_available) {
+        try {
+          const idUrl = supabase.storage.from("watson-kyc").getPublicUrl(`${candidateId}/id_front.jpg`).data.publicUrl;
+          const selfieUrl = supabase.storage.from("watson-kyc").getPublicUrl(`${candidateId}/selfie.jpg`).data.publicUrl;
+          setIdPhoto(idUrl);
+          setSelfiePhoto(selfieUrl);
+        } catch (e) {
+          console.error("Erreur chargement photos", e);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors du chargement", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAction = async (actionType) => {
+    const newStatus = actionType === "approve" ? "approved" : "rejected";
+
+    try {
+      const { error } = await supabase
+        .from("watson_candidates")
+        .update({ status: newStatus, admin_notes: adminNotes })
+        .eq("id", candidateId);
+
+      if (error) throw error;
+
+      showToast(`Candidat(e) ${actionType === "approve" ? "approuvé(e)" : "rejeté(e)"}.`, "success");
+      setTimeout(() => {
+        window.location.hash = "#/admin";
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'action", "error");
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    try {
+      const { error } = await supabase
+        .from("watson_candidates")
+        .update({ admin_notes: adminNotes })
+        .eq("id", candidateId);
+
+      if (error) throw error;
+      showToast("Notes sauvegardées.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur de sauvegarde", "error");
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Chargement...</div>;
+  }
+
+  if (!candidate) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-red-400">Candidat introuvable</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 px-4 py-8">
+      <div className="max-w-4xl mx-auto">
+        <button
+          onClick={() => window.location.hash = "#/admin"}
+          className="text-indigo-400 hover:text-indigo-300 mb-6"
+        >
+          ← Retour
+        </button>
+
+        <h1 className="text-3xl font-bold mb-8 text-indigo-400">{candidate.firstname} {candidate.lastname}</h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="watson-card p-6 rounded-lg">
+            <h3 className="font-semibold text-slate-200 mb-4">Informations Personnelles</h3>
+            <div className="space-y-2 text-sm text-slate-300">
+              <p><strong>Email:</strong> {candidate.email}</p>
+              <p><strong>Téléphone:</strong> {candidate.phone}</p>
+              <p><strong>Telegram:</strong> {candidate.telegram}</p>
+              <p><strong>Pays:</strong> {candidate.country}</p>
+              <p><strong>Langues:</strong> {(candidate.languages || []).join(", ")}</p>
+            </div>
+          </div>
+
+          <div className="watson-card p-6 rounded-lg">
+            <h3 className="font-semibold text-slate-200 mb-4">Scores</h3>
+            <div className="space-y-2 text-sm">
+              <p><strong>QI:</strong> <span className="text-indigo-400">{candidate.score_qi || "-"}/20</span></p>
+              <p><strong>Bon Sens:</strong> <span className="text-indigo-400">{candidate.score_bonsens || "-"}/15</span></p>
+              <p><strong>Français:</strong> <span className="text-indigo-400">{candidate.score_francais || "-"}/20</span></p>
+              <p><strong>En Direct:</strong> <span className="text-indigo-400">{candidate.score_live || "-"}/100</span></p>
+              <p><strong>Statut:</strong> <span className="text-yellow-400">{candidate.status}</span></p>
+            </div>
+          </div>
+
+          <div className="watson-card p-6 rounded-lg">
+            <h3 className="font-semibold text-slate-200 mb-4">Actions</h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleAction("approve")}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition text-sm"
+              >
+                Approuver
+              </button>
+              <button
+                onClick={() => handleAction("reject")}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition text-sm"
+              >
+                Rejeter
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="watson-card p-6 rounded-lg mb-8">
+          <h3 className="font-semibold text-slate-200 mb-4">Vérification Identité (KYC)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {idPhoto && (
+              <div>
+                <p className="text-sm text-slate-400 mb-2">Pièce d'Identité</p>
+                <img src={idPhoto} alt="ID" className="w-full rounded-lg" />
+              </div>
+            )}
+            {selfiePhoto && (
+              <div>
+                <p className="text-sm text-slate-400 mb-2">Selfie</p>
+                <img src={selfiePhoto} alt="Selfie" className="w-full rounded-lg" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="watson-card p-6 rounded-lg">
+          <h3 className="font-semibold text-slate-200 mb-4">Notes Admin</h3>
+          <textarea
+            value={adminNotes}
+            onChange={(e) => setAdminNotes(e.target.value)}
+            className="watson-input w-full h-24 mb-4"
+            placeholder="Ajouter des notes..."
+          />
+          <button
+            onClick={handleSaveNotes}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+          >
+            Sauvegarder Notes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN APP ROUTER
+// ============================================================================
+
+function App() {
+  const [hash, setHash] = React.useState(window.location.hash || "#/");
+
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      setHash(window.location.hash || "#/");
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  const route = hash.split("?")[0].replace("#", "");
+  const candidateId = route.split("/").pop();
+
+  return (
+    <>
+      <Toast />
+      {route === "/" && <Landing />}
+      {route === "/inscription" && <Inscription />}
+      {route === "/kyc" && <KYC />}
+      {route === "/test/qi" && <TestQCM type="qi" questions={QI_QUESTIONS} duration={15 * 60} threshold={8} nextPath="#/test/bonsens" />}
+      {route === "/test/bonsens" && <TestQCM type="bonsens" questions={BONSENS_QUESTIONS} duration={10 * 60} threshold={7} nextPath="#/test/francais" />}
+      {route === "/test/francais" && <TestFrancais />}
+      {route === "/test/simulation" && <TestSimulation />}
+      {route === "/resultats" && <Resultats />}
+      {route === "/admin-login" && <AdminLogin />}
+      {route === "/admin" && <AdminDashboard />}
+      {route.startsWith("/admin/candidat/") && <AdminCandidateDetail candidateId={candidateId} />}
+    </>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById("app"));
+</script>
+
+</body>
+</html>
