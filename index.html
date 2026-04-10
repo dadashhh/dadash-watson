@@ -56,13 +56,14 @@ let currentTestState = null;
 
 // Supabase client
 const supabaseUrl = "https://lkrzjwfwhiimpnsyeuxi.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrcnpqd2Z3aGlpbXBuc3lldXhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4MTM1MTUsImV4cCI6MjA1MzM4OTUxNX0.yEThLc0bM1FQxfBMkhFHZy08F5s6MQfq1VtLOx8Nk_A";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrcnpqd2Z3aGlpbXBuc3lldXhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0NTYwNDgsImV4cCI6MjA4NzAzMjA0OH0.qs9yvOv_eb_QIHzv977qRwEBIIHDfyAvtKRvdJ4DKus";
 const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-// Toast state
+// Toast state — use a callback to force re-render
 let toastMessage = "";
 let toastType = "info";
 let toastVisible = false;
+let toastForceUpdate = null;
 
 // ============================================================================
 // DATA: QUESTIONS
@@ -151,7 +152,8 @@ function showToast(message, type = "info") {
   toastMessage = message;
   toastType = type;
   toastVisible = true;
-  setTimeout(() => { toastVisible = false; }, 3000);
+  if (toastForceUpdate) toastForceUpdate(Date.now());
+  setTimeout(() => { toastVisible = false; if (toastForceUpdate) toastForceUpdate(Date.now()); }, 3000);
 }
 
 function formatTime(seconds) {
@@ -178,6 +180,8 @@ function normalizePhone(phone) {
 // ============================================================================
 
 function Toast() {
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => { toastForceUpdate = setTick; return () => { toastForceUpdate = null; }; }, []);
   if (!toastVisible) return null;
   const bgColor = {
     success: "bg-green-500/20 border-green-500/50",
@@ -780,7 +784,7 @@ function TestFrancais() {
       // Update candidate
       const { error } = await supabase
         .from("watson_candidates")
-        .update({ score_francais: totalScore, status: "francais_completed" })
+        .update({ score_francais_qcm: qcmScore, score_francais_redaction: evalData.redaction_score, score_francais_total: totalScore, status: "francais_completed" })
         .eq("id", currentCandidateId);
       if (error) throw error;
 
@@ -932,8 +936,6 @@ function TestSimulation() {
 
   const handleModelSelect = async (model) => {
     setSelectedModel(model);
-    // Save chosen model
-    await supabase.from("watson_candidates").update({ chosen_model: model.name }).eq("id", currentCandidateId);
     setStep("scenario_brief");
     setChatMessages([]);
     setConversationHistory([]);
@@ -1066,15 +1068,12 @@ function TestSimulation() {
       // Save to watson_test_results
       await supabase.from("watson_test_results").insert({
         candidate_id: currentCandidateId,
-        test_type: "live",
-        scenario_number: scenario.id,
-        question_text: scenario.name,
-        conversation: conv,
-        scenario_score: score,
-        scenario_breakdown: breakdown,
-        response_times: responseTimes,
-        points_earned: score,
-        points_possible: 10
+        test_type: "live_scenario_" + scenario.id,
+        answers: { conversation: conv, model: selectedModel?.name },
+        score: score,
+        details: { breakdown, feedback, response_times: responseTimes, scenario_name: scenario.name },
+        started_at: new Date(Date.now() - 300000).toISOString(),
+        completed_at: new Date().toISOString()
       });
     } catch (err) {
       console.error(err);
@@ -1124,8 +1123,7 @@ function TestSimulation() {
         .from("watson_candidates")
         .update({
           score_live: scoreLive,
-          avg_response_time_seconds: Math.round(allResponseTimes * 10) / 10,
-          avg_messages_per_scenario: chatMessages.length / scenarios.length,
+          avg_response_time: Math.round(allResponseTimes * 10) / 10,
           closing_rate: Math.round(closingRate * 100) / 100,
           proactivity_score: proactivityScore,
           status: "completed"
@@ -1136,19 +1134,16 @@ function TestSimulation() {
       // Calculate & save total weighted score
       const { data: cand } = await supabase
         .from("watson_candidates")
-        .select("score_qi, score_bonsens, score_francais_total, score_live, bonus_orthographe, bonus_emojis, malus_total")
+        .select("score_qi, score_bonsens, score_francais_total, score_live")
         .eq("id", currentCandidateId)
         .single();
 
       if (cand) {
-        const bonusTotal = (cand.bonus_orthographe || 0) + (cand.bonus_emojis || 0);
-        const malusTotal = cand.malus_total || 0;
         const scoreTotal = Math.min(100, Math.max(0,
           (cand.score_qi || 0) / 20 * 10 +
           (cand.score_bonsens || 0) / 15 * 10 +
           (cand.score_francais_total || 0) / 20 * 15 +
-          (cand.score_live || 0) / 100 * 65 +
-          bonusTotal + malusTotal
+          (cand.score_live || 0) / 100 * 65
         ));
 
         let level = "elimine";
@@ -1362,14 +1357,11 @@ function Resultats() {
   }
 
   // Score pondéré : QI 10% + Bon Sens 10% + Français 15% + Live 65%
-  const bonusTotal = (candidate.bonus_orthographe || 0) + (candidate.bonus_emojis || 0);
-  const malusTotal = candidate.malus_total || 0;
   const totalScore = Math.min(100, Math.max(0,
     (candidate.score_qi || 0) / 20 * 10 +
     (candidate.score_bonsens || 0) / 15 * 10 +
     (candidate.score_francais_total || 0) / 20 * 15 +
-    (candidate.score_live || 0) / 100 * 65 +
-    bonusTotal + malusTotal
+    (candidate.score_live || 0) / 100 * 65
   ));
 
   let level = "ÉLIMINÉ";
@@ -1572,7 +1564,7 @@ function AdminDashboard() {
       c.phone,
       c.score_qi || "-",
       c.score_bonsens || "-",
-      c.score_francais || "-",
+      c.score_francais_total || "-",
       c.score_live || "-",
       c.status
     ]);
@@ -1656,7 +1648,7 @@ function AdminDashboard() {
                   <td className="py-3 px-2 text-xs bg-slate-700 px-2 py-1 rounded inline-block">{c.status}</td>
                   <td className="text-center py-3 px-2">{c.score_qi || "-"}/20</td>
                   <td className="text-center py-3 px-2">{c.score_bonsens || "-"}/15</td>
-                  <td className="text-center py-3 px-2">{c.score_francais || "-"}/20</td>
+                  <td className="text-center py-3 px-2">{c.score_francais_total || "-"}/20</td>
                   <td className="text-center py-3 px-2">{c.score_live || "-"}/100</td>
                   <td className="text-center py-3 px-2">
                     <button
@@ -1792,7 +1784,7 @@ function AdminCandidateDetail({ candidateId }) {
             <div className="space-y-2 text-sm">
               <p><strong>QI:</strong> <span className="text-indigo-400">{candidate.score_qi || "-"}/20</span></p>
               <p><strong>Bon Sens:</strong> <span className="text-indigo-400">{candidate.score_bonsens || "-"}/15</span></p>
-              <p><strong>Français:</strong> <span className="text-indigo-400">{candidate.score_francais || "-"}/20</span></p>
+              <p><strong>Français:</strong> <span className="text-indigo-400">{candidate.score_francais_total || "-"}/20</span></p>
               <p><strong>En Direct:</strong> <span className="text-indigo-400">{candidate.score_live || "-"}/100</span></p>
               <p><strong>Statut:</strong> <span className="text-yellow-400">{candidate.status}</span></p>
             </div>
