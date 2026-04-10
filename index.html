@@ -316,11 +316,11 @@ function Inscription() {
       const { data, error } = await supabase
         .from("watson_candidates")
         .insert([{
-          firstname: formData.prenom,
-          lastname: formData.nom,
+          first_name: formData.prenom,
+          last_name: formData.nom,
           email: formData.email,
           phone: normalizePhone(formData.telephone),
-          telegram: formData.telegram,
+          telegram_username: formData.telegram,
           country: formData.pays,
           languages: formData.langues,
           experience: formData.experience,
@@ -1559,7 +1559,7 @@ function AdminDashboard() {
   const handleExportCSV = () => {
     const headers = ["Nom", "Email", "Téléphone", "Score QI", "Score Bon Sens", "Score Français", "Score En Direct", "Statut"];
     const rows = candidates.map(c => [
-      `${c.firstname} ${c.lastname}`,
+      `${c.first_name} ${c.last_name}`,
       c.email,
       c.phone,
       c.score_qi || "-",
@@ -1643,7 +1643,7 @@ function AdminDashboard() {
             <tbody>
               {candidates.map(c => (
                 <tr key={c.id} className="border-b border-slate-600 hover:bg-slate-700/30 transition">
-                  <td className="py-3 px-2">{c.firstname} {c.lastname}</td>
+                  <td className="py-3 px-2">{c.first_name} {c.last_name}</td>
                   <td className="py-3 px-2 text-slate-400">{c.email}</td>
                   <td className="py-3 px-2 text-xs bg-slate-700 px-2 py-1 rounded inline-block">{c.status}</td>
                   <td className="text-center py-3 px-2">{c.score_qi || "-"}/20</td>
@@ -1765,7 +1765,7 @@ function AdminCandidateDetail({ candidateId }) {
           ← Retour
         </button>
 
-        <h1 className="text-3xl font-bold mb-8 text-indigo-400">{candidate.firstname} {candidate.lastname}</h1>
+        <h1 className="text-3xl font-bold mb-8 text-indigo-400">{candidate.first_name} {candidate.last_name}</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="watson-card p-6 rounded-lg">
@@ -1773,7 +1773,7 @@ function AdminCandidateDetail({ candidateId }) {
             <div className="space-y-2 text-sm text-slate-300">
               <p><strong>Email:</strong> {candidate.email}</p>
               <p><strong>Téléphone:</strong> {candidate.phone}</p>
-              <p><strong>Telegram:</strong> {candidate.telegram}</p>
+              <p><strong>Telegram:</strong> {candidate.telegram_username}</p>
               <p><strong>Pays:</strong> {candidate.country}</p>
               <p><strong>Langues:</strong> {(candidate.languages || []).join(", ")}</p>
             </div>
